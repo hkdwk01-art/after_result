@@ -577,6 +577,8 @@ const fmtD=d=>`${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일 (${W
 const fmtT=h=>`${pad(h[0])}:00 ~ ${pad(h[h.length-1]+1)}:00`;
 const won=n=>n?n.toLocaleString('ko-KR')+'원':'무료';
 const fac=id=>FAC.find(f=>f.id===id);
+const calc=b=>fac(b.fac).fee*b.hours.length*b.ppl;
+const feeBreak=b=>{const f=fac(b.fac);return f.fee?`${won(f.fee)} × ${b.hours.length}시간 × ${b.ppl}명`:'무료 시설';};
 const hash=s=>{let h=7;for(const c of s)h=(h*31+c.charCodeAt(0))>>>0;return h};
 const isFull=(fid,k)=>hash(fid+k)%11===0;
 const booked=(fid,k)=>HOURS.filter(h=>hash(fid+k+h)%6===0);
@@ -748,7 +750,7 @@ V.booking=()=>{
   const times=HOURS.map(h=>{const dis=bk.includes(h)||(isToday&&h<=nowH);const sel=b.hours.includes(h);
     return `<button class="chip ${sel?'on':''}" ${dis||!b.date?'disabled':''} data-a="hour" data-h="${h}" aria-pressed="${sel}">${pad(h)}:00</button>`;}).join('');
   const sumTxt=b.date?`${fmtD(pkey(b.date))}${b.hours.length?' · '+fmtT(b.hours):''}`:'날짜를 골라 주세요';
-  const fee=f.fee*b.hours.length;
+  const fee=calc(b);
   const editing=!!S.ctx.editId;
   return `<div class="view">${topbar(editing?'예약 변경':'시설 예약 설정')}<div class="body">
    ${editing?'':prog(2)}
@@ -763,9 +765,9 @@ V.booking=()=>{
    <div class="times">${times}</div>
    <p class="hint">${b.date?'최대 2시간 · 이어진 시간을 한 번 더 누르면 2시간으로 늘어나요. 회색은 이미 예약된 시간이에요.':'날짜를 먼저 고르면 시간이 열려요.'}</p>
    <div class="h3">${I.users}이용 인원</div>
-   <div class="pplrow"><span style="color:var(--sub);font-size:.95rem">최대 20명</span><div class="stepper"><button data-a="ppl" data-d="-1" ${b.ppl<=1?'disabled':''} aria-label="인원 줄이기">−</button><b>${b.ppl}명</b><button data-a="ppl" data-d="1" ${b.ppl>=20?'disabled':''} aria-label="인원 늘리기">+</button></div></div>
+   <div class="pplrow"><span style="color:var(--sub);font-size:.95rem">${f.fee?`1인 1시간 ${won(f.fee)}`:'무료'} · 최대 20명</span><div class="stepper"><button data-a="ppl" data-d="-1" ${b.ppl<=1?'disabled':''} aria-label="인원 줄이기">−</button><b>${b.ppl}명</b><button data-a="ppl" data-d="1" ${b.ppl>=20?'disabled':''} aria-label="인원 늘리기">+</button></div></div>
    </div></div>
-   <div class="foot"><div class="summary">${I.calChk}<div class="t"><small>선택한 예약 정보</small><b>${sumTxt}</b></div>${b.hours.length?`<span class="fee">${won(fee)}</span>`:''}</div>
+   <div class="foot"><div class="summary">${I.calChk}<div class="t"><small>선택한 예약 정보${b.hours.length&&f.fee?' · '+feeBreak(b):''}</small><b>${sumTxt}</b></div>${b.hours.length?`<span class="fee">${won(fee)}</span>`:''}</div>
    <button class="btn" data-a="bkNext" ${b.date&&b.hours.length?'':'disabled'}>${editing?'이 내용으로 변경하기':'다음 단계로 이동'} ${I.arrow}</button></div></div>`;};
 
 /* 로그인 */
@@ -861,13 +863,13 @@ M.verify=()=>{const a=S.ctx.vf;$('#vp1').value=a.p1||'010';
 };
 
 /* 결제 */
-V.payment=()=>{const b=draft(),f=fac(b.fac),fee=f.fee*b.hours.length;
+V.payment=()=>{const b=draft(),f=fac(b.fac),fee=calc(b);
   if(!on('card')&&b.pay!=='vbank')b.pay='vbank';
   const pm=(k,ic,t,s,extra,dis)=>`<button class="${b.pay===k?'on':''}" data-a="pay" data-k="${k}" ${dis?'disabled style="opacity:.55"':''} aria-pressed="${b.pay===k}"><span class="radio"></span><span class="ic">${ic}</span><span class="t"><b>${t}</b><span>${s}</span></span>${extra||''}</button>`;
   return `<div class="view">${topbar('결제하기')}<div class="body">${prog(3)}
   <div class="sec"><div class="h3" style="margin-top:.4rem">${I.cal}예약 정보 확인</div>
    <div class="card"><div class="fac-mini"><img src="${IMG[f.img]}" alt=""><div><b>${f.name}</b><span>${esc(b.sub)} · ${f.tags.split(' · ')[0]}</span></div></div><div class="hr"></div>
-   <dl class="kv"><div><dt>${I.cal}이용일시</dt><dd>${fmtD(pkey(b.date))}<br>${fmtT(b.hours)}</dd></div><div><dt>${I.user}이용인원</dt><dd>${b.ppl}명</dd></div><div><dt>${I.won}이용요금</dt><dd class="price">${won(fee)}</dd></div></dl>
+   <dl class="kv"><div><dt>${I.cal}이용일시</dt><dd>${fmtD(pkey(b.date))}<br>${fmtT(b.hours)}</dd></div><div><dt>${I.user}이용인원</dt><dd>${b.ppl}명</dd></div><div><dt>${I.won}이용요금</dt><dd><span class="price" style="color:var(--pri);font-size:1.5rem;font-weight:900">${won(fee)}</span>${fee?`<br><small style="font-weight:400;color:var(--sub);font-size:.85rem">${feeBreak(b)}</small>`:''}</dd></div></dl>
    <button class="link" style="margin-top:.6rem;color:var(--pri);font-weight:700" data-a="back">‹ 날짜·시간 다시 고르기</button></div>
    ${fee?`<div class="h3">${I.card}결제 수단 선택</div><div class="pm">
     ${pm('card',I.card,'카드 결제','신용카드·체크카드로 바로 결제',on('card')?'':'<span class="soon">2차</span>',!on('card'))}
@@ -1000,7 +1002,7 @@ A.pick=el=>{const f=fac(el.dataset.id);
   S.ctx={bk:{fac:f.id,sub:f.subs[0],date:first,hours:[],ppl:1,ym:[fd.getFullYear(),fd.getMonth()],pay:on('card')?'card':'vbank'}};
   go('booking');};
 A.sub=el=>{draft().sub=el.dataset.k;render(true);};
-A.facInfo=()=>{const f=fac(draft().fac);openSheet(`<h3>${f.name}</h3><p class="d">${f.tags}</p><dl class="kv"><div><dt>${I.pin}주소</dt><dd>○○시 시청로 100</dd></div><div><dt>${I.clock}운영</dt><dd>09:00 ~ 18:00 (12시 점검)</dd></div><div><dt>${I.won}요금</dt><dd>${f.fee?won(f.fee)+' / 1시간':'무료'}</dd></div><div><dt>${I.tel}문의</dt><dd>${PHONE}</dd></div></dl><div class="acts"><button class="btn sm" data-x>확인</button></div>`,{onMount:s=>s.querySelector('[data-x]').onclick=closeSheet});};
+A.facInfo=()=>{const f=fac(draft().fac);openSheet(`<h3>${f.name}</h3><p class="d">${f.tags}</p><dl class="kv"><div><dt>${I.pin}주소</dt><dd>○○시 시청로 100</dd></div><div><dt>${I.clock}운영</dt><dd>09:00 ~ 18:00 (12시 점검)</dd></div><div><dt>${I.won}요금</dt><dd>${f.fee?'1인 1시간 '+won(f.fee):'무료'}</dd></div><div><dt>${I.tel}문의</dt><dd>${PHONE}</dd></div></dl><div class="acts"><button class="btn sm" data-x>확인</button></div>`,{onMount:s=>s.querySelector('[data-x]').onclick=closeSheet});};
 A.mon=el=>{const b=draft();let [y,m]=b.ym;m+=+el.dataset.d;if(m<0){m=11;y--;}if(m>11){m=0;y++;}b.ym=[y,m];render(true);};
 A.day=el=>{const b=draft();b.date=el.dataset.k;const bk=booked(b.fac,b.date);b.hours=b.hours.filter(h=>!bk.includes(h));render(true);};
 A.hour=el=>{const b=draft(),h=+el.dataset.h,hs=b.hours;
@@ -1061,7 +1063,7 @@ A.otpOk=()=>{const a=S.ctx.vf,v=$('#otp').value;
 
 /* 결제 */
 A.pay=el=>{draft().pay=el.dataset.k;render(true);};
-A.payGo=()=>{const b=draft(),f=fac(b.fac),fee=f.fee*b.hours.length;
+A.payGo=()=>{const b=draft(),f=fac(b.fac),fee=calc(b);
   if(!fee)return finish('free');
   if(b.pay==='card')return openSheet(`<h3>카드 결제</h3><p class="d">${won(fee)} · ${f.name}</p><div class="cardgrid" id="cg">${['신한','KB국민','삼성','현대','하나','우리','BC','롯데'].map((c,i)=>`<button class="${i===0?'on':''}" data-c="${c}">${c}</button>`).join('')}</div>
      <div class="row2" style="margin:1rem 0 .4rem"><span style="color:var(--sub)">할부</span><b>일시불</b></div><button class="btn" data-x>${won(fee)} 결제하기</button>`,{onMount:s=>{let c='신한';s.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{s.querySelectorAll('[data-c]').forEach(x=>x.classList.remove('on'));b.classList.add('on');c=b.dataset.c;});
@@ -1069,7 +1071,7 @@ A.payGo=()=>{const b=draft(),f=fac(b.fac),fee=f.fee*b.hours.length;
   if(b.pay==='easy')return openSheet(`<h3>간편결제</h3><p class="d">${won(fee)} · 등록된 계정으로 바로 결제돼요.</p><div style="display:grid;gap:.6rem">
      <button class="paylogo" style="background:#fee500;border:0" data-e="카카오페이">카카오페이</button><button class="paylogo" style="background:#03c75a;color:#fff;border:0" data-e="네이버페이">네이버페이</button><button class="paylogo" style="background:#e8f0ff;color:#0064ff;border:0" data-e="토스페이">토스페이</button></div>`,{onMount:s=>s.querySelectorAll('[data-e]').forEach(x=>x.onclick=()=>{closeSheet();busy(`${x.dataset.e}로 결제하고 있어요`,1200,()=>finish('easy',x.dataset.e));})});
   busy('가상계좌를 발급하고 있어요',900,()=>finish('vbank'));};
-function finish(kind,label){const b=draft(),f=fac(b.fac),fee=f.fee*b.hours.length;const d=new Date(Date.now()+864e5);
+function finish(kind,label){const b=draft(),f=fac(b.fac),fee=calc(b);const d=new Date(Date.now()+864e5);
   const r={id:'r'+Date.now(),uid:D.session.id,no:`R${b.date.replace(/-/g,'')}-${pad(D.reservations.length+1).padStart(4,'0')}`,fac:f.id,sub:b.sub,date:b.date,hours:b.hours.slice(),ppl:b.ppl,fee,
    payLabel:kind==='free'?'무료':kind==='vbank'?'가상계좌 입금':kind==='card'?'카드 결제 · '+label:label,status:kind==='vbank'?'wait':'paid',
    acct:kind==='vbank'?`국민은행 ${String(Math.floor(Math.random()*9e5+1e5))}-${pad(Math.floor(Math.random()*99))}-${String(Math.floor(Math.random()*9e5+1e5))}`:null,
@@ -1089,7 +1091,7 @@ A.changeCancel=()=>{if(!D.session){S.ctx.after=()=>{S.rtab='up';go('records',{re
 A.rDetail=el=>{S.ctx.rid=el.dataset.id;go('rdetail');};
 A.rChange=el=>{if(!phase2Gate())return;const r=D.reservations.find(x=>x.id===el.dataset.id);const d=pkey(r.date);
   S.ctx={...S.ctx,editId:r.id,bk:{fac:r.fac,sub:r.sub,date:r.date,hours:r.hours.slice(),ppl:r.ppl,ym:[d.getFullYear(),d.getMonth()]}};go('booking');};
-function applyChange(){const r=D.reservations.find(x=>x.id===S.ctx.editId),b=draft(),f=fac(b.fac);const nf=f.fee*b.hours.length,diff=nf-r.fee;
+function applyChange(){const r=D.reservations.find(x=>x.id===S.ctx.editId),b=draft(),f=fac(b.fac);const nf=calc(b),diff=nf-r.fee;
   dlg('이 내용으로 바꿀까요?',`${fmtD(pkey(b.date))}\n${fmtT(b.hours)} · ${b.ppl}명${diff?`\n요금 차이 ${diff>0?'+':''}${diff.toLocaleString()}원 (${diff>0?'같은 수단으로 추가 결제':'자동 환불'})`:''}`,{cancel:'취소',ok:'변경하기',onOk:()=>busy('예약을 변경하고 있어요',900,()=>{
     Object.assign(r,{sub:b.sub,date:b.date,hours:b.hours.slice(),ppl:b.ppl,fee:nf});noti('rsv','예약이 변경되었어요',`${fmtD(pkey(r.date))} ${fmtT(r.hours)}`,{rid:r.id});save();
     S.ctx={rid:r.id};S.stack=[];go('rdetail',{reset:true});toast('예약을 변경했어요. 전화하지 않아도 돼요.');})});}
